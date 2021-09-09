@@ -667,6 +667,115 @@ class StreamClient(EnumEnforcer):
                                                         self.ChartFuturesFields))
 
     ##########################################################################
+    # CHART_HISTORY_FUTURES
+
+    class ChartHistoryFuturesFields(_BaseFieldEnum):
+        '''
+        `Official documentation https://developer.tdameritrade.com/content/
+        streaming-data#_Toc504640594`__
+        Data fields for equity OHLCV data. Primarily an implementation detail
+        and not used in client code. Provided here as documentation for key
+        values stored returned in the stream messages.
+        '''
+
+        #: Milliseconds since Epoch
+        CHART_TIME = 0
+
+        #: Opening price for the minute
+        OPEN_PRICE = 1
+
+        #: Highest price for the minute
+        HIGH_PRICE = 2
+
+        #: Chart’s lowest price for the minute
+        LOW_PRICE = 3
+
+        #: Closing price for the minute
+        CLOSE_PRICE = 4
+
+        #: Total volume for the minute
+        VOLUME = 5
+
+    class FuturesPriceHistory:
+        class Frequency(Enum):
+            #: Fixed frequency choices available for CHART_HISTORY_FUTURES service
+            ONE_MINUTE = 'm1'
+            FIVE_MINUTES = 'm5'
+            TEN_MINUTES = 'm10'
+            THIRTY_MINUTES = 'm30'
+            ONE_HOUR = 'h1'
+            ONE_DAY = 'd1'
+            ONE_WEEK = 'w1'
+            ONE_MONTH = 'n1'
+
+        class Period(Enum):
+            #: Flexible time period choices available for CHART_HISTORY_FUTURES
+            #: service
+            FIVE_DAYS = 'd5'
+            FOUR_WEEK = 'w4'
+            TEN_MONTH = 'n10'
+            ONE_YEAR = 'y1'
+            TEN_YEARS = 'y10'
+
+    async def chart_history_futures_subs(self,
+                                         symbols, *,
+                                         frequency=None,
+                                         period=None,
+                                         start_time=None,
+                                         end_time=None):
+        '''
+        `Official documentation https://developer.tdameritrade.com/content/
+        streaming-data#_Toc504640594`__
+        Chart history for equities is available via requests to the MDMS services.
+        Only Futures chart history is available via Streamer Server.
+        :param symbols: Futures symbols to get chart history, example: ``/ES``
+        :param frequency: The number of the frequencyType to be included in each
+                          candle
+        :param period: The number of periods to show. Should not be provided if
+                       ``start_time`` and ``end_time`` are specified.
+        :param start_time: Start time of chart in milliseconds since Epoch.
+        :param end_time: End time of chart in milliseconds since Epoch.
+        '''
+        period = self.convert_enum(period, self.FuturesPriceHistory.Period)
+        frequency = self.convert_enum(
+            frequency, self.FuturesPriceHistory.Frequency)
+
+        service = 'CHART_HISTORY_FUTURES'
+        command = 'GET'
+        params = {
+            'symbol': ','.join(symbols),
+        }
+
+        if period is not None:
+            params['period'] = period
+        if frequency is not None:
+            params['frequency'] = frequency
+        if start_time is not None:
+            params['START_TIME'] = self.__datetime_as_millis(
+                'start_time', start_time)
+        if end_time is not None:
+            params['END_TIME'] = self.__datetime_as_millis(
+                'end_time', end_time)
+
+        # Can't used _service_op method for now as parameters are hardcoded in
+        # method
+
+        request, request_id = self._make_request(
+            service=service, command=command,
+            parameters=params)
+
+        await self._send({'requests': [request]})
+
+    def add_chart_history_futures_handler(self, handler):
+        '''
+        Adds a handler to the futures chart subscription. See
+        :ref:`registering_handlers` for details.
+        '''
+
+        self._handlers['CHART_HISTORY_FUTURES'].append(
+            _Handler(handler, self.ChartHistoryFuturesFields))
+            
+    ##########################################################################
     # QUOTE
 
     class LevelOneEquityFields(_BaseFieldEnum):
